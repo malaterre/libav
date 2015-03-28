@@ -583,28 +583,36 @@ static int dicm_read_header(AVFormatContext *ctx)
     av_assert0( is_start(&de) );
 
     //av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d\n", pb->pos );
-    av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d\n", pb->buf_ptr - pb->buffer );
+    av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d length is: %d\n", pb->buf_ptr - pb->buffer, de.vl );
     //    AVProbeData pd;
 
     sub_demuxer = &ff_mov_demuxer;
+#if 0
     if (!(sub_ctx = avformat_alloc_context())) {
-            //ret = AVERROR(ENOMEM);
-    av_assert0(0);
+      //ret = AVERROR(ENOMEM);
+      av_assert0(0);
     }
     sub_ctx->pb       = pb;
+    ret = avformat_open_input(&sub_ctx, "", sub_demuxer, NULL);
+    av_assert0( ret == 0);
+    sub_ctx->ctx_flags &= ~AVFMTCTX_NOHEADER;
+    ret = avformat_find_stream_info(sub_ctx, NULL);
+#else
     ret = avformat_open_input(&ctx, "", sub_demuxer, NULL);
+    av_assert0( ret == 0);
+#endif
     //av_assert0(0);
 
-#if 1
+#if 0
     // open MP4 container:
     vst = avformat_new_stream(ctx, NULL);
     if (!vst)
         return AVERROR(ENOMEM);
+    dicm->video_stream_index = vst->index;
 
     vst->codec->codec_type = AVMEDIA_TYPE_VIDEO;
     vst->codec->codec_id   = AV_CODEC_ID_MPEG4;
     vst->need_parsing      = AVSTREAM_PARSE_FULL;
-    //dicm->video_stream_index = vst->index;
     //avpriv_set_pts_info(vst, 64, 1, 100);
     avpriv_set_pts_info(vst, 64, 1, 15);
 #endif
