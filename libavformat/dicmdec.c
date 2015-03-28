@@ -522,7 +522,7 @@ static int read_dataset( AVIOContext * pb )
   int ret;
   while( (ret = read_explicit( pb, &de)) == 0 && tag_is_lower( &de, pixel_data ) )
     {
-    //av_log (NULL, AV_LOG_DEBUG, "%04x,%04x\n", get_group(de.tag), get_element(de.tag) );
+    av_log (NULL, AV_LOG_DEBUG, "%d : %04x,%04x\n", pb->pos, get_group(de.tag), get_element(de.tag) );
     av_assert0( get_group( de.tag ) != 0xfffe );
     av_assert0( get_group( de.tag ) <= 0x7fe0 );
     if( is_undef_len(&de) )
@@ -558,27 +558,56 @@ static int dicm_read_probe(AVProbeData *probe_packet)
     return 0;
 }
 
+extern AVInputFormat ff_mov_demuxer;
+
 static int dicm_read_header(AVFormatContext *ctx)
 {
     DICMContext *dicm = ctx->priv_data;
     AVIOContext *pb = ctx->pb;
     AVStream *vst;
+    AVInputFormat *sub_demuxer = NULL;
+    AVFormatContext *sub_ctx;
+    int ret;
+    data_element de = { 0 };
 
     read_preamble(pb);
     read_meta(pb);
     read_dataset(pb);
+    // read basic offset table:
+    read_implicit( pb, &de );
+    av_assert0( is_start(&de) );
+    avio_skip(pb, de.vl);
+    // read the Item start:
+    de.tag = 0;
+    read_implicit( pb, &de );
+    av_assert0( is_start(&de) );
 
-    av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d\n", pb->pos );
+    //av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d\n", pb->pos );
+    av_log (ctx, AV_LOG_DEBUG, "MPEG stream start here: %d\n", pb->buf_ptr - pb->buffer );
+    //    AVProbeData pd;
+
+    sub_demuxer = &ff_mov_demuxer;
+    if (!(sub_ctx = avformat_alloc_context())) {
+            //ret = AVERROR(ENOMEM);
     av_assert0(0);
+    }
+    sub_ctx->pb       = pb;
+    ret = avformat_open_input(&ctx, "", sub_demuxer, NULL);
+    //av_assert0(0);
 
+#if 1
     // open MP4 container:
     vst = avformat_new_stream(ctx, NULL);
     if (!vst)
         return AVERROR(ENOMEM);
 
     vst->codec->codec_type = AVMEDIA_TYPE_VIDEO;
-    dicm->video_stream_index = vst->index;
-    vst->codec->codec_id = AV_CODEC_ID_MPEG4;
+    vst->codec->codec_id   = AV_CODEC_ID_MPEG4;
+    vst->need_parsing      = AVSTREAM_PARSE_FULL;
+    //dicm->video_stream_index = vst->index;
+    //avpriv_set_pts_info(vst, 64, 1, 100);
+    avpriv_set_pts_info(vst, 64, 1, 15);
+#endif
 
     return 0;
 }
