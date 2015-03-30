@@ -29,6 +29,8 @@
 #include <stdlib.h>
 
 typedef struct DICMContext {
+    AVFormatContext *sub_ctx;
+    AVPacket sub_pkt;
     int video_stream_index;
 } DICMContext;
 
@@ -566,7 +568,7 @@ static int dicm_read_header(AVFormatContext *ctx)
     AVIOContext *pb = ctx->pb;
     AVStream *vst;
     AVInputFormat *sub_demuxer = NULL;
-    AVFormatContext *sub_ctx;
+    //AVFormatContext *sub_ctx;
         AVRational time_base;
     int ret;
     data_element de = { 0 };
@@ -588,36 +590,50 @@ static int dicm_read_header(AVFormatContext *ctx)
     //    AVProbeData pd;
 
     sub_demuxer = &ff_mov_demuxer;
-#if 0
-    if (!(sub_ctx = avformat_alloc_context())) {
+#if 1
+    if (!(dicm->sub_ctx = avformat_alloc_context())) {
       //ret = AVERROR(ENOMEM);
       av_assert0(0);
     }
-    sub_ctx->pb       = pb;
-    ret = avformat_open_input(&sub_ctx, "", sub_demuxer, NULL);
-    av_assert0( ret == 0);
-    sub_ctx->ctx_flags &= ~AVFMTCTX_NOHEADER;
-    ret = avformat_find_stream_info(sub_ctx, NULL);
+    dicm->sub_ctx->pb       = pb;
+    ret = avformat_open_input(&dicm->sub_ctx, "", sub_demuxer, NULL);
+    av_assert0(ret == 0);
+    ff_read_packet(dicm->sub_ctx, &dicm->sub_pkt);
+    //sub_ctx->ctx_flags &= ~AVFMTCTX_NOHEADER;
+    //ret = avformat_find_stream_info(sub_ctx, NULL);
 #else
     ret = avformat_open_input(&ctx, "", sub_demuxer, NULL);
     av_assert0(ret == 0);
 #endif
 
+#if 1
     // see avidec.c
     vst = avformat_new_stream(ctx, NULL);
     if (!vst)
         return AVERROR(ENOMEM);
     dicm->video_stream_index = vst->index;
+#endif
     *vst->codec = *ctx->streams[0]->codec;
+    dicm->sub_ctx->streams[0]->codec->extradata = NULL;
     time_base = ctx->streams[0]->time_base;
     avpriv_set_pts_info(vst, 64, time_base.num, time_base.den);
 
     return 0;
 }
 
-static int dicm_read_packet(AVFormatContext *s, AVPacket *pkt)
+static int dicm_read_packet(AVFormatContext *ctx, AVPacket *pkt)
 {
-    av_assert0(0);
+    int ret;
+    DICMContext *dicm = ctx->priv_data;
+    *pkt              = dicm->sub_pkt;
+    //pkt->stream_index = sub_st->index;
+    if( ret = ff_read_packet(dicm->sub_ctx, &dicm->sub_pkt) < 0 )
+      {
+      dicm->sub_pkt.data = NULL;
+      }
+    av_log (ctx, AV_LOG_DEBUG, "Packet: %d\n", ret );
+    //av_assert0(0);
+
     return 0;
 }
 
