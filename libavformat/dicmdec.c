@@ -567,6 +567,7 @@ static int dicm_read_header(AVFormatContext *ctx)
     AVStream *vst;
     AVInputFormat *sub_demuxer = NULL;
     AVFormatContext *sub_ctx;
+        AVRational time_base;
     int ret;
     data_element de = { 0 };
 
@@ -599,23 +600,17 @@ static int dicm_read_header(AVFormatContext *ctx)
     ret = avformat_find_stream_info(sub_ctx, NULL);
 #else
     ret = avformat_open_input(&ctx, "", sub_demuxer, NULL);
-    av_assert0( ret == 0);
+    av_assert0(ret == 0);
 #endif
-    //av_assert0(0);
 
-#if 0
-    // open MP4 container:
+    // see avidec.c
     vst = avformat_new_stream(ctx, NULL);
     if (!vst)
         return AVERROR(ENOMEM);
     dicm->video_stream_index = vst->index;
-
-    vst->codec->codec_type = AVMEDIA_TYPE_VIDEO;
-    vst->codec->codec_id   = AV_CODEC_ID_MPEG4;
-    vst->need_parsing      = AVSTREAM_PARSE_FULL;
-    //avpriv_set_pts_info(vst, 64, 1, 100);
-    avpriv_set_pts_info(vst, 64, 1, 15);
-#endif
+    *vst->codec = *ctx->streams[0]->codec;
+    time_base = ctx->streams[0]->time_base;
+    avpriv_set_pts_info(vst, 64, time_base.num, time_base.den);
 
     return 0;
 }
@@ -628,7 +623,7 @@ static int dicm_read_packet(AVFormatContext *s, AVPacket *pkt)
 
 AVInputFormat ff_dicm_demuxer = {
     .name           = "dicm",
-    .long_name      = NULL_IF_CONFIG_SMALL("DICOM Medicine"),
+    .long_name      = NULL_IF_CONFIG_SMALL("DICOM (Video)"),
     .extensions     = "dcm",
     .priv_data_size = sizeof(DICMContext),
     .read_probe     = dicm_read_probe,
